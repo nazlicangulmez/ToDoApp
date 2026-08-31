@@ -1,6 +1,4 @@
-
-let gorevler = [];
-let siradakiId = 1;
+const API = "http://localhost:3000";
 
 const input = document.querySelector('#yeni-gorev');
 const ekleBtn = document.querySelector('#ekle-btn');
@@ -20,7 +18,22 @@ const sayaclar = {
 
 const SIRA = ['bekliyor', 'devam', 'bitti'];
 
-function panoyuCiz() {
+async function gorevleriYukle() {
+  const yanit = await fetch(`${API}/gorevler`);
+  const gorevler = await yanit.json();
+  panoyuCiz(gorevler);
+}
+
+async function durumDegistir(id, yeniDurum) {
+  await fetch(`${API}/gorevler/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ durum: yeniDurum }),
+  });
+  await gorevleriYukle();
+}
+
+function panoyuCiz(gorevler) {
   listeler.bekliyor.innerHTML = '';
   listeler.devam.innerHTML = '';
   listeler.bitti.innerHTML = '';
@@ -43,14 +56,12 @@ function panoyuCiz() {
 
     const suankiIndex = SIRA.indexOf(gorev.durum);
 
-
     if (suankiIndex > 0) {
       const geriBtn = document.createElement('button');
       geriBtn.textContent = '←';
       geriBtn.title = 'Önceki duruma al';
       geriBtn.addEventListener('click', () => {
-        gorev.durum = SIRA[suankiIndex - 1];
-        panoyuCiz();
+        durumDegistir(gorev.id, SIRA[suankiIndex - 1]);
       });
       aksiyonlar.appendChild(geriBtn);
     }
@@ -60,8 +71,7 @@ function panoyuCiz() {
       ileriBtn.textContent = '→';
       ileriBtn.title = 'Sonraki duruma al';
       ileriBtn.addEventListener('click', () => {
-        gorev.durum = SIRA[suankiIndex + 1];
-        panoyuCiz();
+        durumDegistir(gorev.id, SIRA[suankiIndex + 1]);
       });
       aksiyonlar.appendChild(ileriBtn);
     }
@@ -70,9 +80,9 @@ function panoyuCiz() {
     silBtn.className = 'sil-btn';
     silBtn.textContent = '✕';
     silBtn.title = 'Sil';
-    silBtn.addEventListener('click', () => {
-      gorevler = gorevler.filter((g) => g.id !== gorev.id);
-      panoyuCiz();
+    silBtn.addEventListener('click', async () => {
+      await fetch(`${API}/gorevler/${gorev.id}`, { method: 'DELETE' });
+      await gorevleriYukle();
     });
     aksiyonlar.appendChild(silBtn);
 
@@ -85,15 +95,20 @@ function panoyuCiz() {
   sayaclar.bitti.textContent = sayim.bitti;
 }
 
-//Görev ekleme (her zaman "bekliyor" kolonuna düşer)
-function gorevEkle() {
+
+async function gorevEkle() {
   const baslik = input.value.trim();
   if (baslik === '') return;
 
-  gorevler.push({ id: siradakiId++, baslik, durum: 'bekliyor' });
+  await fetch(`${API}/gorevler`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ baslik: baslik }),
+  });
+
   input.value = '';
   input.focus();
-  panoyuCiz();
+  await gorevleriYukle();
 }
 
 ekleBtn.addEventListener('click', gorevEkle);
@@ -105,10 +120,9 @@ let karanlikMi = false;
 
 function temayiUygula() {
   document.body.classList.toggle('karanlik', karanlikMi);
-  // ikon: karanlıktaysa ay, aydınlıktaysa güneş
   temaIkon.innerHTML = karanlikMi
-    ? '<path d="M21 12.5A9 9 0 1 1 11.5 3a7 7 0 0 0 9.5 9.5z"></path>'
-    : `<circle cx="12" cy="12" r="4"></circle>
+      ? '<path d="M21 12.5A9 9 0 1 1 11.5 3a7 7 0 0 0 9.5 9.5z"></path>'
+      : `<circle cx="12" cy="12" r="4"></circle>
        <line x1="12" y1="1.5" x2="12" y2="4"></line>
        <line x1="12" y1="20" x2="12" y2="22.5"></line>
        <line x1="4.2" y1="4.2" x2="6" y2="6"></line>
@@ -124,4 +138,4 @@ temaBtn.addEventListener('click', () => {
   temayiUygula();
 });
 
-panoyuCiz();
+gorevleriYukle();

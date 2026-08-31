@@ -1,9 +1,11 @@
 import express from "express";
+import cors from "cors";
 import { havuz } from "./db/baglanti.js";
 
 const uygulama = express();
 const PORT = 3000;
 
+uygulama.use(cors());
 uygulama.use(express.json());
 
 uygulama.get("/gorevler", async (istek, yanit) => {
@@ -26,17 +28,18 @@ uygulama.post("/gorevler", async (istek, yanit) => {
     yanit.status(201).json(sonuc.rows[0]);
 });
 
-uygulama.listen(PORT, () => {
-    console.log(`sunucu http://localhost:${PORT} adresinde`);
-});
-
 uygulama.put("/gorevler/:id", async (istek, yanit) => {
     const { id } = istek.params;
-    const { tamamlandi } = istek.body;
+    const { durum } = istek.body;
+
+    const gecerliDurumlar = ["bekliyor", "devam", "bitti"];
+    if (!gecerliDurumlar.includes(durum)) {
+        return yanit.status(400).json({ hata: "gecersiz durum" });
+    }
 
     const sonuc = await havuz.query(
-        "UPDATE gorevler SET tamamlandi = $1 WHERE id = $2 RETURNING *",
-        [tamamlandi, id]
+        "UPDATE gorevler SET durum = $1 WHERE id = $2 RETURNING *",
+        [durum, id]
     );
 
     if (sonuc.rowCount === 0) {
@@ -59,4 +62,8 @@ uygulama.delete("/gorevler/:id", async (istek, yanit) => {
     }
 
     yanit.json({ mesaj: "silindi" });
+});
+
+uygulama.listen(PORT, () => {
+    console.log(`sunucu http://localhost:${PORT} adresinde`);
 });
