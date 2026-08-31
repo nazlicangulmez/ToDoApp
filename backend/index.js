@@ -1,95 +1,52 @@
-//Callback
-// const gorevleriGetir = (bittiginde) => {
-//     setTimeout(() => {
-//         bittiginde(["alışveriş yap", "ödevi bitir", "koşuya çık"]);
-//     }, 2000);
-// };
-//
-// console.log("görevler isteniyor...");
-//
-// gorevleriGetir((gorevler) => {
-//     console.log("gelen görevler:", gorevler);
-// });
-//
-// console.log("bu arada başka işler yapılıyor");
-
-//Promise
-// const gorevleriGetir = () => {
-//     return new Promise((resolve) => {
-//         setTimeout(() => {
-//             resolve(["alışveriş yap", "ödevi bitir", "koşuya çık"]);
-//         }, 2000);
-//     });
-// };
-//
-// console.log("görevler isteniyor...");
-//
-// gorevleriGetir().then((gorevler) => {
-//     console.log("gelen görevler:", gorevler);
-// });
-//
-// console.log("bu arada başka işler yapılıyor");
-
-//Async/Await
-
-// const gorevleriGetir = () => {
-//     return new Promise((resolve) => {
-//         setTimeout(() => {
-//             resolve(["alışveriş yap", "ödevi bitir", "koşuya çık"]);
-//         }, 2000);
-//     });
-// };
-//
-// const calistir = async () => {
-//     console.log("görevler isteniyor...");
-//
-//     const gorevler = await gorevleriGetir();
-//
-//     console.log("gelen görevler:", gorevler);
-// };
-//
-// calistir();
 
 import readline from "readline/promises";
+import { havuz } from "./db/baglanti.js";
 
 const arayuz = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
 });
 
-const gorevler = [];
-
-const gorevEkle = (baslik) => {
-    gorevler.push({ baslik: baslik, tamamlandi: false });
+const gorevEkle = async (baslik) => {
+    await havuz.query("INSERT INTO gorevler (baslik) VALUES ($1)", [baslik]);
     console.log("eklendi.");
 };
 
-const gorevleriListele = () => {
+const gorevleriListele = async () => {
+    const sonuc = await havuz.query("SELECT * FROM gorevler ORDER BY id");
+    const gorevler = sonuc.rows;
+
     if (gorevler.length === 0) {
         console.log("henüz görev yok.");
         return;
     }
-    gorevler.forEach((gorev, index) => {
+
+    gorevler.forEach((gorev) => {
         const isaret = gorev.tamamlandi ? "[x]" : "[ ]";
-        console.log(`${index + 1}. ${isaret} ${gorev.baslik}`);
+        console.log(`${gorev.id}. ${isaret} ${gorev.baslik}`);
     });
 };
 
-const gorevTamamla = (index) => {
-    if (!gorevler[index]) {
+const gorevTamamla = async (id) => {
+    const sonuc = await havuz.query(
+        "UPDATE gorevler SET tamamlandi = true WHERE id = $1",
+        [id]
+    );
+
+    if (sonuc.rowCount === 0) {
         console.log("böyle bir görev yok.");
         return;
     }
-    gorevler[index].tamamlandi = true;
     console.log("tamamlandı olarak işaretlendi.");
 };
 
-const gorevSil = (index) => {
-    if (!gorevler[index]) {
+const gorevSil = async (id) => {
+    const sonuc = await havuz.query("DELETE FROM gorevler WHERE id = $1", [id]);
+
+    if (sonuc.rowCount === 0) {
         console.log("böyle bir görev yok.");
         return;
     }
-    gorevler.splice(index, 1);
     console.log("silindi.");
 };
 
@@ -110,15 +67,15 @@ while (calisiyor) {
 
     if (secim === "1") {
         const baslik = await arayuz.question("görev başlığı: ");
-        gorevEkle(baslik);
+        await gorevEkle(baslik);
     } else if (secim === "2") {
-        gorevleriListele();
+        await gorevleriListele();
     } else if (secim === "3") {
-        const numara = await arayuz.question("kaç numaralı görev? ");
-        gorevTamamla(Number(numara) - 1);
+        const id = await arayuz.question("hangi id? ");
+        await gorevTamamla(Number(id));
     } else if (secim === "4") {
-        const numara = await arayuz.question("kaç numaralı görev silinsin? ");
-        gorevSil(Number(numara) - 1);
+        const id = await arayuz.question("hangi id silinsin? ");
+        await gorevSil(Number(id));
     } else if (secim === "5") {
         calisiyor = false;
     } else {
@@ -127,4 +84,5 @@ while (calisiyor) {
 }
 
 arayuz.close();
+await havuz.end();
 console.log("görüşürüz.");
