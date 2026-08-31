@@ -1,5 +1,16 @@
 const API = "http://localhost:3000";
 
+let token = null;
+
+const girisEkrani = document.querySelector('#giris-ekrani');
+const uygulamaEkrani = document.querySelector('#uygulama');
+const epostaInput = document.querySelector('#eposta');
+const sifreInput = document.querySelector('#sifre');
+const girisBtn = document.querySelector('#giris-btn');
+const kayitBtn = document.querySelector('#kayit-btn');
+const girisMesaj = document.querySelector('#giris-mesaj');
+const cikisBtn = document.querySelector('#cikis-btn');
+
 const input = document.querySelector('#yeni-gorev');
 const ekleBtn = document.querySelector('#ekle-btn');
 const temaBtn = document.querySelector('#tema-btn');
@@ -18,16 +29,90 @@ const sayaclar = {
 
 const SIRA = ['bekliyor', 'devam', 'bitti'];
 
+// Token'ı otomatik ekleyen fetch sarmalayıcısı
+async function istekAt(yol, ayarlar = {}) {
+  const yanit = await fetch(`${API}${yol}`, {
+    ...ayarlar,
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+      ...ayarlar.headers,
+    },
+  });
+
+  if (yanit.status === 401) {
+    cikisYap();
+    throw new Error('oturum sona erdi');
+  }
+
+  return yanit;
+}
+
+async function girisYap() {
+  const eposta = epostaInput.value.trim();
+  const sifre = sifreInput.value;
+
+  const yanit = await fetch(`${API}/giris`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ eposta, sifre }),
+  });
+
+  const veri = await yanit.json();
+
+  if (!yanit.ok) {
+    girisMesaj.textContent = veri.hata;
+    girisMesaj.className = 'hata';
+    return;
+  }
+
+  token = veri.token;
+  girisEkrani.style.display = 'none';
+  uygulamaEkrani.style.display = 'block';
+  girisMesaj.textContent = '';
+  await gorevleriYukle();
+}
+
+async function kayitOl() {
+  const eposta = epostaInput.value.trim();
+  const sifre = sifreInput.value;
+
+  const yanit = await fetch(`${API}/kayit`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ eposta, sifre }),
+  });
+
+  const veri = await yanit.json();
+
+  if (!yanit.ok) {
+    girisMesaj.textContent = veri.hata;
+    girisMesaj.className = 'hata';
+    return;
+  }
+
+  girisMesaj.textContent = 'Kayıt başarılı, şimdi giriş yapabilirsin.';
+  girisMesaj.className = 'basarili';
+}
+
+function cikisYap() {
+  token = null;
+  uygulamaEkrani.style.display = 'none';
+  girisEkrani.style.display = 'flex';
+  epostaInput.value = '';
+  sifreInput.value = '';
+  girisMesaj.textContent = '';
+}
+
 async function gorevleriYukle() {
-  const yanit = await fetch(`${API}/gorevler`);
+  const yanit = await istekAt('/gorevler');
   const gorevler = await yanit.json();
   panoyuCiz(gorevler);
 }
 
 async function durumDegistir(id, yeniDurum) {
-  await fetch(`${API}/gorevler/${id}`, {
+  await istekAt(`/gorevler/${id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ durum: yeniDurum }),
   });
   await gorevleriYukle();
@@ -81,7 +166,7 @@ function panoyuCiz(gorevler) {
     silBtn.textContent = '✕';
     silBtn.title = 'Sil';
     silBtn.addEventListener('click', async () => {
-      await fetch(`${API}/gorevler/${gorev.id}`, { method: 'DELETE' });
+      await istekAt(`/gorevler/${gorev.id}`, { method: 'DELETE' });
       await gorevleriYukle();
     });
     aksiyonlar.appendChild(silBtn);
@@ -95,21 +180,27 @@ function panoyuCiz(gorevler) {
   sayaclar.bitti.textContent = sayim.bitti;
 }
 
-
 async function gorevEkle() {
   const baslik = input.value.trim();
   if (baslik === '') return;
 
-  await fetch(`${API}/gorevler`, {
+  await istekAt('/gorevler', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ baslik: baslik }),
+    body: JSON.stringify({ baslik }),
   });
 
   input.value = '';
   input.focus();
   await gorevleriYukle();
 }
+
+girisBtn.addEventListener('click', girisYap);
+kayitBtn.addEventListener('click', kayitOl);
+cikisBtn.addEventListener('click', cikisYap);
+
+sifreInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') girisYap();
+});
 
 ekleBtn.addEventListener('click', gorevEkle);
 input.addEventListener('keydown', (e) => {
@@ -137,5 +228,3 @@ temaBtn.addEventListener('click', () => {
   karanlikMi = !karanlikMi;
   temayiUygula();
 });
-
-gorevleriYukle();
