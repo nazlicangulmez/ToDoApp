@@ -1,7 +1,12 @@
-CREATE TABLE gorevler (
+CREATE TABLE IF NOT EXISTS kullanicilar (
   id SERIAL PRIMARY KEY,
-  baslik VARCHAR(255) NOT NULL,
-  durum VARCHAR(20) DEFAULT 'bekliyor'
+  eposta VARCHAR(255) UNIQUE NOT NULL,
+  sifre_hash VARCHAR(255) NOT NULL
 );
 
-
+CREATE TABLE IF NOT EXISTS gorevler (
+  id SERIAL PRIMARY KEY,
+  baslik VARCHAR(255) NOT NULL,
+  durum VARCHAR(20) DEFAULT 'bekliyor',
+  kullanici_id INTEGER REFERENCES kullanicilar(id) ON DELETE CASCADE
+);
