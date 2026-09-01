@@ -9,8 +9,8 @@
 </head>
 <body>
 
-<button id="tema-btn" aria-label="Temayı değiştir" title="Temayı değiştir">
-  <svg id="tema-ikon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+<button id="theme-btn" aria-label="Temayı değiştir" title="Temayı değiştir">
+  <svg id="theme-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
     <circle cx="12" cy="12" r="4"></circle>
     <line x1="12" y1="1.5" x2="12" y2="4"></line>
     <line x1="12" y1="20" x2="12" y2="22.5"></line>
@@ -23,52 +23,52 @@
   </svg>
 </button>
 
-<div id="giris-ekrani">
+<div id="login-screen">
   <h1>Yapılacaklar</h1>
-  <input type="email" id="eposta" placeholder="E-posta">
-  <input type="password" id="sifre" placeholder="Şifre">
-  <button id="giris-btn">Giriş Yap</button>
-  <button id="kayit-btn" class="ikincil">Kayıt Ol</button>
-  <p id="giris-mesaj"></p>
+  <input type="email" id="email" placeholder="E-posta">
+  <input type="password" id="password" placeholder="Şifre">
+  <button id="login-btn">Giriş Yap</button>
+  <button id="register-btn" class="secondary">Kayıt Ol</button>
+  <p id="login-message"></p>
 </div>
 
-<div id="uygulama" style="display: none;">
+<div id="app" style="display: none;">
 
-  <header class="ust">
+  <header class="header">
     <h1>Yapılacaklar</h1>
-    <div class="giris-satiri">
-      <input type="text" id="yeni-gorev" placeholder="Yeni görev yaz...">
-      <button id="ekle-btn">Ekle</button>
+    <div class="input-row">
+      <input type="text" id="new-todo" placeholder="Yeni görev yaz...">
+      <button id="add-btn">Ekle</button>
     </div>
-    <button id="cikis-btn" class="ikincil">Çıkış</button>
+    <button id="logout-btn" class="secondary">Çıkış</button>
   </header>
 
-  <main class="pano">
-    <section class="kolon" data-durum="bekliyor">
-      <div class="kolon-baslik">
-        <span class="nokta nokta-bekliyor"></span>
+  <main class="board">
+    <section class="column" data-status="pending">
+      <div class="column-title">
+        <span class="dot dot-pending"></span>
         <h2>Bekliyor</h2>
-        <span class="sayac" id="sayac-bekliyor">0</span>
+        <span class="count" id="count-pending">0</span>
       </div>
-      <div class="kart-listesi" id="liste-bekliyor"></div>
+      <div class="card-list" id="list-pending"></div>
     </section>
 
-    <section class="kolon" data-durum="devam">
-      <div class="kolon-baslik">
-        <span class="nokta nokta-devam"></span>
+    <section class="column" data-status="in_progress">
+      <div class="column-title">
+        <span class="dot dot-in-progress"></span>
         <h2>Devam Ediyor</h2>
-        <span class="sayac" id="sayac-devam">0</span>
+        <span class="count" id="count-in-progress">0</span>
       </div>
-      <div class="kart-listesi" id="liste-devam"></div>
+      <div class="card-list" id="list-in-progress"></div>
     </section>
 
-    <section class="kolon" data-durum="bitti">
-      <div class="kolon-baslik">
-        <span class="nokta nokta-bitti"></span>
+    <section class="column" data-status="done">
+      <div class="column-title">
+        <span class="dot dot-done"></span>
         <h2>Tamamlandı</h2>
-        <span class="sayac" id="sayac-bitti">0</span>
+        <span class="count" id="count-done">0</span>
       </div>
-      <div class="kart-listesi" id="liste-bitti"></div>
+      <div class="card-list" id="list-done"></div>
     </section>
   </main>
 
