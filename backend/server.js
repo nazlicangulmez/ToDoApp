@@ -1,154 +1,154 @@
 import express from "express";
 import cors from "cors";
-import { havuz } from "./db/baglanti.js";
+import { pool } from "./db/connection.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
-const uygulama = express();
+const app = express();
 const PORT = 3000;
 
-uygulama.use(cors());
-uygulama.use(express.json());
+app.use(cors());
+app.use(express.json());
 
-const tokenKontrol = (istek, yanit, sonraki) => {
-    const baslik = istek.headers.authorization;
+const requireAuth = (req, res, next) => {
+    const header = req.headers.authorization;
 
-    if (!baslik || !baslik.startsWith("Bearer ")) {
-        return yanit.status(401).json({ hata: "token gerekli" });
+    if (!header || !header.startsWith("Bearer ")) {
+        return res.status(401).json({ error: "token required" });
     }
 
-    const token = baslik.split(" ")[1];
+    const token = header.split(" ")[1];
 
     try {
-        const veri = jwt.verify(token, process.env.JWT_SECRET);
-        istek.kullanici = veri;
-        sonraki();
-    } catch (hata) {
-        return yanit.status(401).json({ hata: "gecersiz veya suresi dolmus token" });
+        const payload = jwt.verify(token, process.env.JWT_SECRET);
+        req.user = payload;
+        next();
+    } catch (error) {
+        return res.status(401).json({ error: "invalid or expired token" });
     }
 };
 
-uygulama.post("/kayit", async (istek, yanit) => {
-    const { eposta, sifre } = istek.body;
+app.post("/api/auth/register", async (req, res) => {
+    const { email, password } = req.body;
 
-    if (!eposta || !sifre) {
-        return yanit.status(400).json({ hata: "eposta ve sifre zorunlu" });
+    if (!email || !password) {
+        return res.status(400).json({ error: "email and password are required" });
     }
 
-    if (sifre.length < 6) {
-        return yanit.status(400).json({ hata: "sifre en az 6 karakter olmali" });
+    if (password.length < 6) {
+        return res.status(400).json({ error: "password must be at least 6 characters" });
     }
 
-    const mevcut = await havuz.query(
-        "SELECT id FROM kullanicilar WHERE eposta = $1",
-        [eposta]
+    const existing = await pool.query(
+        "SELECT id FROM users WHERE email = $1",
+        [email]
     );
 
-    if (mevcut.rowCount > 0) {
-        return yanit.status(409).json({ hata: "bu eposta zaten kayitli" });
+    if (existing.rowCount > 0) {
+        return res.status(409).json({ error: "email already registered" });
     }
 
-    const sifreHash = await bcrypt.hash(sifre, 10);
+    const passwordHash = await bcrypt.hash(password, 10);
 
-    const sonuc = await havuz.query(
-        "INSERT INTO kullanicilar (eposta, sifre_hash) VALUES ($1, $2) RETURNING id, eposta",
-        [eposta, sifreHash]
+    const result = await pool.query(
+        "INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email",
+        [email, passwordHash]
     );
 
-    yanit.status(201).json(sonuc.rows[0]);
+    res.status(201).json(result.rows[0]);
 });
 
-uygulama.post("/giris", async (istek, yanit) => {
-    const { eposta, sifre } = istek.body;
+app.post("/api/auth/login", async (req, res) => {
+    const { email, password } = req.body;
 
-    if (!eposta || !sifre) {
-        return yanit.status(400).json({ hata: "eposta ve sifre zorunlu" });
+    if (!email || !password) {
+        return res.status(400).json({ error: "email and password are required" });
     }
 
-    const sonuc = await havuz.query(
-        "SELECT * FROM kullanicilar WHERE eposta = $1",
-        [eposta]
+    const result = await pool.query(
+        "SELECT * FROM users WHERE email = $1",
+        [email]
     );
 
-    if (sonuc.rowCount === 0) {
-        return yanit.status(401).json({ hata: "eposta veya sifre hatali" });
+    if (result.rowCount === 0) {
+        return res.status(401).json({ error: "invalid email or password" });
     }
 
-    const kullanici = sonuc.rows[0];
-    const sifreDogruMu = await bcrypt.compare(sifre, kullanici.sifre_hash);
+    const user = result.rows[0];
+    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
 
-    if (!sifreDogruMu) {
-        return yanit.status(401).json({ hata: "eposta veya sifre hatali" });
+    if (!isPasswordValid) {
+        return res.status(401).json({ error: "invalid email or password" });
     }
 
     const token = jwt.sign(
-        { id: kullanici.id, eposta: kullanici.eposta },
+        { id: user.id, email: user.email },
         process.env.JWT_SECRET,
         { expiresIn: "1h" }
     );
 
-    yanit.json({ token: token });
+    res.json({ token: token });
 });
 
-uygulama.get("/gorevler", tokenKontrol, async (istek, yanit) => {
-    const sonuc = await havuz.query(
-        "SELECT * FROM gorevler WHERE kullanici_id = $1 ORDER BY id",
-        [istek.kullanici.id]
+app.get("/api/todos", requireAuth, async (req, res) => {
+    const result = await pool.query(
+        "SELECT * FROM todos WHERE user_id = $1 ORDER BY id",
+        [req.user.id]
     );
-    yanit.json(sonuc.rows);
+    res.json(result.rows);
 });
 
-uygulama.post("/gorevler", tokenKontrol, async (istek, yanit) => {
-    const { baslik } = istek.body;
+app.post("/api/todos", requireAuth, async (req, res) => {
+    const { title } = req.body;
 
-    if (!baslik) {
-        return yanit.status(400).json({ hata: "baslik zorunlu" });
+    if (!title) {
+        return res.status(400).json({ error: "title is required" });
     }
 
-    const sonuc = await havuz.query(
-        "INSERT INTO gorevler (baslik, kullanici_id) VALUES ($1, $2) RETURNING *",
-        [baslik, istek.kullanici.id]
+    const result = await pool.query(
+        "INSERT INTO todos (title, user_id) VALUES ($1, $2) RETURNING *",
+        [title, req.user.id]
     );
 
-    yanit.status(201).json(sonuc.rows[0]);
+    res.status(201).json(result.rows[0]);
 });
 
-uygulama.put("/gorevler/:id", tokenKontrol, async (istek, yanit) => {
-    const { id } = istek.params;
-    const { durum } = istek.body;
+app.put("/api/todos/:id", requireAuth, async (req, res) => {
+    const { id } = req.params;
+    const { status } = req.body;
 
-    const gecerliDurumlar = ["bekliyor", "devam", "bitti"];
-    if (!gecerliDurumlar.includes(durum)) {
-        return yanit.status(400).json({ hata: "gecersiz durum" });
+    const validStatuses = ["pending", "in_progress", "done"];
+    if (!validStatuses.includes(status)) {
+        return res.status(400).json({ error: "invalid status" });
     }
 
-    const sonuc = await havuz.query(
-        "UPDATE gorevler SET durum = $1 WHERE id = $2 AND kullanici_id = $3 RETURNING *",
-        [durum, id, istek.kullanici.id]
+    const result = await pool.query(
+        "UPDATE todos SET status = $1 WHERE id = $2 AND user_id = $3 RETURNING *",
+        [status, id, req.user.id]
     );
 
-    if (sonuc.rowCount === 0) {
-        return yanit.status(404).json({ hata: "gorev bulunamadi" });
+    if (result.rowCount === 0) {
+        return res.status(404).json({ error: "todo not found" });
     }
 
-    yanit.json(sonuc.rows[0]);
+    res.json(result.rows[0]);
 });
 
-uygulama.delete("/gorevler/:id", tokenKontrol, async (istek, yanit) => {
-    const { id } = istek.params;
+app.delete("/api/todos/:id", requireAuth, async (req, res) => {
+    const { id } = req.params;
 
-    const sonuc = await havuz.query(
-        "DELETE FROM gorevler WHERE id = $1 AND kullanici_id = $2 RETURNING *",
-        [id, istek.kullanici.id]
+    const result = await pool.query(
+        "DELETE FROM todos WHERE id = $1 AND user_id = $2 RETURNING *",
+        [id, req.user.id]
     );
 
-    if (sonuc.rowCount === 0) {
-        return yanit.status(404).json({ hata: "gorev bulunamadi" });
+    if (result.rowCount === 0) {
+        return res.status(404).json({ error: "todo not found" });
     }
 
-    yanit.json({ mesaj: "silindi" });
+    res.json({ message: "deleted" });
 });
 
-uygulama.listen(PORT, () => {
-    console.log(`sunucu http://localhost:${PORT} adresinde`);
+app.listen(PORT, () => {
+    console.log(`server running at http://localhost:${PORT}`);
 });

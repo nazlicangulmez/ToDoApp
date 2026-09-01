@@ -1,56 +1,70 @@
-
 import readline from "readline/promises";
-import { havuz } from "./db/baglanti.js";
+import { pool } from "./db/connection.js";
 
-const arayuz = readline.createInterface({
+const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
 });
 
-const gorevEkle = async (baslik) => {
-    await havuz.query("INSERT INTO gorevler (baslik) VALUES ($1)", [baslik]);
+const STATUS_LABELS = {
+    pending: "[ ]",
+    in_progress: "[~]",
+    done: "[x]",
+};
+
+const addTodo = async (userId, title) => {
+    await pool.query(
+        "INSERT INTO todos (title, user_id) VALUES ($1, $2)",
+        [title, userId]
+    );
     console.log("eklendi.");
 };
 
-const gorevleriListele = async () => {
-    const sonuc = await havuz.query("SELECT * FROM gorevler ORDER BY id");
-    const gorevler = sonuc.rows;
+const listTodos = async (userId) => {
+    const result = await pool.query(
+        "SELECT * FROM todos WHERE user_id = $1 ORDER BY id",
+        [userId]
+    );
+    const todos = result.rows;
 
-    if (gorevler.length === 0) {
+    if (todos.length === 0) {
         console.log("henüz görev yok.");
         return;
     }
 
-    gorevler.forEach((gorev) => {
-        const isaret = gorev.tamamlandi ? "[x]" : "[ ]";
-        console.log(`${gorev.id}. ${isaret} ${gorev.baslik}`);
+    todos.forEach((todo) => {
+        const mark = STATUS_LABELS[todo.status] ?? "[?]";
+        console.log(`${todo.id}. ${mark} ${todo.title}`);
     });
 };
 
-const gorevTamamla = async (id) => {
-    const sonuc = await havuz.query(
-        "UPDATE gorevler SET tamamlandi = true WHERE id = $1",
-        [id]
+const markDone = async (userId, id) => {
+    const result = await pool.query(
+        "UPDATE todos SET status = 'done' WHERE id = $1 AND user_id = $2",
+        [id, userId]
     );
 
-    if (sonuc.rowCount === 0) {
+    if (result.rowCount === 0) {
         console.log("böyle bir görev yok.");
         return;
     }
     console.log("tamamlandı olarak işaretlendi.");
 };
 
-const gorevSil = async (id) => {
-    const sonuc = await havuz.query("DELETE FROM gorevler WHERE id = $1", [id]);
+const deleteTodo = async (userId, id) => {
+    const result = await pool.query(
+        "DELETE FROM todos WHERE id = $1 AND user_id = $2",
+        [id, userId]
+    );
 
-    if (sonuc.rowCount === 0) {
+    if (result.rowCount === 0) {
         console.log("böyle bir görev yok.");
         return;
     }
     console.log("silindi.");
 };
 
-const menuGoster = () => {
+const showMenu = () => {
     console.log("\n--- TODO ---");
     console.log("1. Görev ekle");
     console.log("2. Görevleri listele");
@@ -59,30 +73,45 @@ const menuGoster = () => {
     console.log("5. Çıkış");
 };
 
-let calisiyor = true;
+const email = await rl.question("e-postan: ");
+const userResult = await pool.query(
+    "SELECT id FROM users WHERE email = $1",
+    [email]
+);
 
-while (calisiyor) {
-    menuGoster();
-    const secim = await arayuz.question("seçimin: ");
+if (userResult.rowCount === 0) {
+    console.log("böyle bir kullanıcı yok. önce web arayüzünden kayıt ol.");
+    rl.close();
+    await pool.end();
+    process.exit(0);
+}
 
-    if (secim === "1") {
-        const baslik = await arayuz.question("görev başlığı: ");
-        await gorevEkle(baslik);
-    } else if (secim === "2") {
-        await gorevleriListele();
-    } else if (secim === "3") {
-        const id = await arayuz.question("hangi id? ");
-        await gorevTamamla(Number(id));
-    } else if (secim === "4") {
-        const id = await arayuz.question("hangi id silinsin? ");
-        await gorevSil(Number(id));
-    } else if (secim === "5") {
-        calisiyor = false;
+const userId = userResult.rows[0].id;
+
+let running = true;
+
+while (running) {
+    showMenu();
+    const choice = await rl.question("seçimin: ");
+
+    if (choice === "1") {
+        const title = await rl.question("görev başlığı: ");
+        await addTodo(userId, title);
+    } else if (choice === "2") {
+        await listTodos(userId);
+    } else if (choice === "3") {
+        const id = await rl.question("hangi id? ");
+        await markDone(userId, Number(id));
+    } else if (choice === "4") {
+        const id = await rl.question("hangi id silinsin? ");
+        await deleteTodo(userId, Number(id));
+    } else if (choice === "5") {
+        running = false;
     } else {
         console.log("geçersiz seçim.");
     }
 }
 
-arayuz.close();
-await havuz.end();
+rl.close();
+await pool.end();
 console.log("görüşürüz.");

@@ -2,216 +2,216 @@ const API = "http://localhost:3000";
 
 let token = null;
 
-const girisEkrani = document.querySelector('#giris-ekrani');
-const uygulamaEkrani = document.querySelector('#uygulama');
-const epostaInput = document.querySelector('#eposta');
-const sifreInput = document.querySelector('#sifre');
-const girisBtn = document.querySelector('#giris-btn');
-const kayitBtn = document.querySelector('#kayit-btn');
-const girisMesaj = document.querySelector('#giris-mesaj');
-const cikisBtn = document.querySelector('#cikis-btn');
+const loginScreen = document.querySelector('#login-screen');
+const appScreen = document.querySelector('#app');
+const emailInput = document.querySelector('#email');
+const passwordInput = document.querySelector('#password');
+const loginBtn = document.querySelector('#login-btn');
+const registerBtn = document.querySelector('#register-btn');
+const loginMessage = document.querySelector('#login-message');
+const logoutBtn = document.querySelector('#logout-btn');
 
-const input = document.querySelector('#yeni-gorev');
-const ekleBtn = document.querySelector('#ekle-btn');
-const temaBtn = document.querySelector('#tema-btn');
-const temaIkon = document.querySelector('#tema-ikon');
+const newTodoInput = document.querySelector('#new-todo');
+const addBtn = document.querySelector('#add-btn');
+const themeBtn = document.querySelector('#theme-btn');
+const themeIcon = document.querySelector('#theme-icon');
 
-const listeler = {
-  bekliyor: document.querySelector('#liste-bekliyor'),
-  devam: document.querySelector('#liste-devam'),
-  bitti: document.querySelector('#liste-bitti'),
+const lists = {
+  pending: document.querySelector('#list-pending'),
+  in_progress: document.querySelector('#list-in-progress'),
+  done: document.querySelector('#list-done'),
 };
-const sayaclar = {
-  bekliyor: document.querySelector('#sayac-bekliyor'),
-  devam: document.querySelector('#sayac-devam'),
-  bitti: document.querySelector('#sayac-bitti'),
+const counters = {
+  pending: document.querySelector('#count-pending'),
+  in_progress: document.querySelector('#count-in-progress'),
+  done: document.querySelector('#count-done'),
 };
 
-const SIRA = ['bekliyor', 'devam', 'bitti'];
+const STATUS_ORDER = ['pending', 'in_progress', 'done'];
 
 // Token'ı otomatik ekleyen fetch sarmalayıcısı
-async function istekAt(yol, ayarlar = {}) {
-  const yanit = await fetch(`${API}${yol}`, {
-    ...ayarlar,
+async function apiRequest(path, options = {}) {
+  const response = await fetch(`${API}${path}`, {
+    ...options,
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`,
-      ...ayarlar.headers,
+      ...options.headers,
     },
   });
 
-  if (yanit.status === 401) {
-    cikisYap();
+  if (response.status === 401) {
+    logout();
     throw new Error('oturum sona erdi');
   }
 
-  return yanit;
+  return response;
 }
 
-async function girisYap() {
-  const eposta = epostaInput.value.trim();
-  const sifre = sifreInput.value;
+async function login() {
+  const email = emailInput.value.trim();
+  const password = passwordInput.value;
 
-  const yanit = await fetch(`${API}/giris`, {
+  const response = await fetch(`${API}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ eposta, sifre }),
+    body: JSON.stringify({ email, password }),
   });
 
-  const veri = await yanit.json();
+  const data = await response.json();
 
-  if (!yanit.ok) {
-    girisMesaj.textContent = veri.hata;
-    girisMesaj.className = 'hata';
+  if (!response.ok) {
+    loginMessage.textContent = data.error;
+    loginMessage.className = 'error';
     return;
   }
 
-  token = veri.token;
-  girisEkrani.style.display = 'none';
-  uygulamaEkrani.style.display = 'block';
-  girisMesaj.textContent = '';
-  await gorevleriYukle();
+  token = data.token;
+  loginScreen.style.display = 'none';
+  appScreen.style.display = 'block';
+  loginMessage.textContent = '';
+  await loadTodos();
 }
 
-async function kayitOl() {
-  const eposta = epostaInput.value.trim();
-  const sifre = sifreInput.value;
+async function register() {
+  const email = emailInput.value.trim();
+  const password = passwordInput.value;
 
-  const yanit = await fetch(`${API}/kayit`, {
+  const response = await fetch(`${API}/api/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ eposta, sifre }),
+    body: JSON.stringify({ email, password }),
   });
 
-  const veri = await yanit.json();
+  const data = await response.json();
 
-  if (!yanit.ok) {
-    girisMesaj.textContent = veri.hata;
-    girisMesaj.className = 'hata';
+  if (!response.ok) {
+    loginMessage.textContent = data.error;
+    loginMessage.className = 'error';
     return;
   }
 
-  girisMesaj.textContent = 'Kayıt başarılı, şimdi giriş yapabilirsin.';
-  girisMesaj.className = 'basarili';
+  loginMessage.textContent = 'Kayıt başarılı, şimdi giriş yapabilirsin.';
+  loginMessage.className = 'success';
 }
 
-function cikisYap() {
+function logout() {
   token = null;
-  uygulamaEkrani.style.display = 'none';
-  girisEkrani.style.display = 'flex';
-  epostaInput.value = '';
-  sifreInput.value = '';
-  girisMesaj.textContent = '';
+  appScreen.style.display = 'none';
+  loginScreen.style.display = 'flex';
+  emailInput.value = '';
+  passwordInput.value = '';
+  loginMessage.textContent = '';
 }
 
-async function gorevleriYukle() {
-  const yanit = await istekAt('/gorevler');
-  const gorevler = await yanit.json();
-  panoyuCiz(gorevler);
+async function loadTodos() {
+  const response = await apiRequest('/api/todos');
+  const todos = await response.json();
+  renderBoard(todos);
 }
 
-async function durumDegistir(id, yeniDurum) {
-  await istekAt(`/gorevler/${id}`, {
+async function updateStatus(id, newStatus) {
+  await apiRequest(`/api/todos/${id}`, {
     method: 'PUT',
-    body: JSON.stringify({ durum: yeniDurum }),
+    body: JSON.stringify({ status: newStatus }),
   });
-  await gorevleriYukle();
+  await loadTodos();
 }
 
-function panoyuCiz(gorevler) {
-  listeler.bekliyor.innerHTML = '';
-  listeler.devam.innerHTML = '';
-  listeler.bitti.innerHTML = '';
+function renderBoard(todos) {
+  lists.pending.innerHTML = '';
+  lists.in_progress.innerHTML = '';
+  lists.done.innerHTML = '';
 
-  const sayim = { bekliyor: 0, devam: 0, bitti: 0 };
+  const counts = { pending: 0, in_progress: 0, done: 0 };
 
-  gorevler.forEach((gorev) => {
-    sayim[gorev.durum]++;
+  todos.forEach((todo) => {
+    counts[todo.status]++;
 
-    const kart = document.createElement('div');
-    kart.className = 'kart';
-    kart.dataset.durum = gorev.durum;
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.dataset.status = todo.status;
 
     const p = document.createElement('p');
-    p.textContent = gorev.baslik;
-    kart.appendChild(p);
+    p.textContent = todo.title;
+    card.appendChild(p);
 
-    const aksiyonlar = document.createElement('div');
-    aksiyonlar.className = 'kart-aksiyonlar';
+    const actions = document.createElement('div');
+    actions.className = 'card-actions';
 
-    const suankiIndex = SIRA.indexOf(gorev.durum);
+    const currentIndex = STATUS_ORDER.indexOf(todo.status);
 
-    if (suankiIndex > 0) {
-      const geriBtn = document.createElement('button');
-      geriBtn.textContent = '←';
-      geriBtn.title = 'Önceki duruma al';
-      geriBtn.addEventListener('click', () => {
-        durumDegistir(gorev.id, SIRA[suankiIndex - 1]);
+    if (currentIndex > 0) {
+      const backBtn = document.createElement('button');
+      backBtn.textContent = '←';
+      backBtn.title = 'Önceki duruma al';
+      backBtn.addEventListener('click', () => {
+        updateStatus(todo.id, STATUS_ORDER[currentIndex - 1]);
       });
-      aksiyonlar.appendChild(geriBtn);
+      actions.appendChild(backBtn);
     }
 
-    if (suankiIndex < SIRA.length - 1) {
-      const ileriBtn = document.createElement('button');
-      ileriBtn.textContent = '→';
-      ileriBtn.title = 'Sonraki duruma al';
-      ileriBtn.addEventListener('click', () => {
-        durumDegistir(gorev.id, SIRA[suankiIndex + 1]);
+    if (currentIndex < STATUS_ORDER.length - 1) {
+      const forwardBtn = document.createElement('button');
+      forwardBtn.textContent = '→';
+      forwardBtn.title = 'Sonraki duruma al';
+      forwardBtn.addEventListener('click', () => {
+        updateStatus(todo.id, STATUS_ORDER[currentIndex + 1]);
       });
-      aksiyonlar.appendChild(ileriBtn);
+      actions.appendChild(forwardBtn);
     }
 
-    const silBtn = document.createElement('button');
-    silBtn.className = 'sil-btn';
-    silBtn.textContent = '✕';
-    silBtn.title = 'Sil';
-    silBtn.addEventListener('click', async () => {
-      await istekAt(`/gorevler/${gorev.id}`, { method: 'DELETE' });
-      await gorevleriYukle();
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'delete-btn';
+    deleteBtn.textContent = '✕';
+    deleteBtn.title = 'Sil';
+    deleteBtn.addEventListener('click', async () => {
+      await apiRequest(`/api/todos/${todo.id}`, { method: 'DELETE' });
+      await loadTodos();
     });
-    aksiyonlar.appendChild(silBtn);
+    actions.appendChild(deleteBtn);
 
-    kart.appendChild(aksiyonlar);
-    listeler[gorev.durum].appendChild(kart);
+    card.appendChild(actions);
+    lists[todo.status].appendChild(card);
   });
 
-  sayaclar.bekliyor.textContent = sayim.bekliyor;
-  sayaclar.devam.textContent = sayim.devam;
-  sayaclar.bitti.textContent = sayim.bitti;
+  counters.pending.textContent = counts.pending;
+  counters.in_progress.textContent = counts.in_progress;
+  counters.done.textContent = counts.done;
 }
 
-async function gorevEkle() {
-  const baslik = input.value.trim();
-  if (baslik === '') return;
+async function addTodo() {
+  const title = newTodoInput.value.trim();
+  if (title === '') return;
 
-  await istekAt('/gorevler', {
+  await apiRequest('/api/todos', {
     method: 'POST',
-    body: JSON.stringify({ baslik }),
+    body: JSON.stringify({ title }),
   });
 
-  input.value = '';
-  input.focus();
-  await gorevleriYukle();
+  newTodoInput.value = '';
+  newTodoInput.focus();
+  await loadTodos();
 }
 
-girisBtn.addEventListener('click', girisYap);
-kayitBtn.addEventListener('click', kayitOl);
-cikisBtn.addEventListener('click', cikisYap);
+loginBtn.addEventListener('click', login);
+registerBtn.addEventListener('click', register);
+logoutBtn.addEventListener('click', logout);
 
-sifreInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') girisYap();
+passwordInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') login();
 });
 
-ekleBtn.addEventListener('click', gorevEkle);
-input.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') gorevEkle();
+addBtn.addEventListener('click', addTodo);
+newTodoInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') addTodo();
 });
 
-let karanlikMi = false;
+let isDark = false;
 
-function temayiUygula() {
-  document.body.classList.toggle('karanlik', karanlikMi);
-  temaIkon.innerHTML = karanlikMi
+function applyTheme() {
+  document.body.classList.toggle('dark', isDark);
+  themeIcon.innerHTML = isDark
       ? '<path d="M21 12.5A9 9 0 1 1 11.5 3a7 7 0 0 0 9.5 9.5z"></path>'
       : `<circle cx="12" cy="12" r="4"></circle>
        <line x1="12" y1="1.5" x2="12" y2="4"></line>
@@ -224,7 +224,7 @@ function temayiUygula() {
        <line x1="18" y1="6" x2="19.8" y2="4.2"></line>`;
 }
 
-temaBtn.addEventListener('click', () => {
-  karanlikMi = !karanlikMi;
-  temayiUygula();
+themeBtn.addEventListener('click', () => {
+  isDark = !isDark;
+  applyTheme();
 });
